@@ -27,6 +27,10 @@ import (
 	"time"
 )
 
+// testDBName is the sqlite database file created under the service dir. It is
+// removed before each run and left in place afterwards for inspection.
+const testDBName = "user-service-tests.db"
+
 // aliceBody is the request used by both POSTs. The username (and name) are
 // identical so the second create must be rejected on the uniqueness
 // constraint declared in user-service-structs/user.go.
@@ -67,8 +71,8 @@ func TestUserUniqueness(t *testing.T) {
 	}
 }
 
-// startServer builds and launches the sqlite user-service on a free port using
-// its own temp working directory and sqlite database, then waits for /health.
+// startServer builds and launches the sqlite user-service on a free port, using
+// a fresh database file under the service dir, then waits for /health.
 func startServer(t *testing.T) (base string, stop func()) {
 	t.Helper()
 
@@ -89,12 +93,16 @@ func startServer(t *testing.T) (base string, stop func()) {
 		t.Fatalf("failed to build ./cmd/server in %s: %v\n%s", dir, err, out)
 	}
 
+	// Start from a clean database file. It is left under the service dir after
+	// the run so it can be inspected.
+	removeTestDB(t, dir)
+
 	port := freePort(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, exe, "serve",
 		"--port", strconv.Itoa(port),
-		"--database-url", "file:./user-service.db?_fk=1")
-	cmd.Dir = work
+		"--database-url", "file:./"+testDBName+"?_fk=1")
+	cmd.Dir = dir
 
 	var logs bytes.Buffer
 	cmd.Stdout = &logs
@@ -125,6 +133,17 @@ func serviceDir() string {
 	}
 	_, file, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(file), "..", "..", "build", "user-service-sqlite")
+}
+
+// removeTestDB deletes the test database and its sidecar files under dir so each
+// run starts clean.
+func removeTestDB(t *testing.T, dir string) {
+	t.Helper()
+	for _, suffix := range []string{"", "-shm", "-wal", "-journal"} {
+		if err := os.Remove(filepath.Join(dir, testDBName+suffix)); err != nil && !os.IsNotExist(err) {
+			t.Fatalf("failed to remove old test database %s: %v", testDBName+suffix, err)
+		}
+	}
 }
 
 // freePort returns an available TCP port on the loopback interface.
