@@ -93,9 +93,11 @@ esac
 
 SERVICE_DIR="$OUT_DIR/$SERVICE_NAME"
 
-# Path to the fabrica binary; prefer a local build, fall back to PATH.
+# Path to the fabrica binary; prefer the fabrica on PATH, fall back to a local build.
 if [[ -z "${FABRICA_BIN:-}" ]]; then
-	if [[ -x "$FABRICA_DIR/bin/fabrica.exe" ]]; then
+	if command -v fabrica >/dev/null 2>&1; then
+		FABRICA_BIN="fabrica"
+	elif [[ -x "$FABRICA_DIR/bin/fabrica.exe" ]]; then
 		FABRICA_BIN="$FABRICA_DIR/bin/fabrica.exe"
 	elif [[ -x "$FABRICA_DIR/bin/fabrica" ]]; then
 		FABRICA_BIN="$FABRICA_DIR/bin/fabrica"
