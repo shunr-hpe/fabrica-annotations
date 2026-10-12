@@ -6,12 +6,15 @@ SPDX-License-Identifier: MIT
 
 # fabrica-annotations
 
-A test bed for the new Fabrica **storage annotations** (PR-106).
+A test bed for the new Fabrica **storage annotations**.
 
 The goal of this project is to exercise, end to end, the annotations that 
 control how Fabrica stores a resource — in particular
 *dedicated* (hybrid) storage, per-field column promotion, uniqueness, and
 composite indexes — and to surface bugs in that code path.
+
+The tests are based on Fabrica's
+[12-storage-annotations example](https://github.com/OpenCHAMI/fabrica/tree/main/examples/12-storage-annotations).
 
 The source of truth for the annotations under test is
 [user-service-structs/user.go](user-service-structs/user.go). `UserSpec` uses:

@@ -52,6 +52,7 @@ make clean generate
 
 ```sh
 cd build/user-service-sqlite
+rm -f user-service.db
 go run ./cmd/server serve --port 8080 --database-url "file:./user-service.db?_fk=1"
 ```
 
