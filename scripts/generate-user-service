@@ -104,9 +104,41 @@ if [[ -z "${FABRICA_BIN:-}" ]]; then
 	fi
 fi
 
-# Local fabrica checkout to pin via a go.mod replace directive. Set to empty to
-# build against the published module instead.
-LOCAL_FABRICA="${LOCAL_FABRICA:-$FABRICA_DIR}"
+# Local fabrica checkout to pin via a go.mod replace directive.
+#
+# By default this is derived from the fabrica binary in use: a replace directive
+# is only added when that binary lives in a bin/ directory inside a local git
+# checkout of the fabrica repo. Set LOCAL_FABRICA explicitly (including to the
+# empty string) to override the detection.
+
+# detect_local_fabrica_repo prints the path to a local fabrica git checkout when
+# the given fabrica binary lives in its bin/ directory; otherwise prints nothing.
+detect_local_fabrica_repo() {
+	local bin="$1" path dir repo
+
+	# Resolve a bare command name (e.g. "fabrica") via PATH.
+	if [[ "$bin" == */* ]]; then
+		path="$bin"
+	else
+		path="$(command -v "$bin" 2>/dev/null || true)"
+	fi
+	[[ -n "$path" ]] || return 0
+
+	dir="$(cd "$(dirname "$path")" 2>/dev/null && pwd)" || return 0
+	[[ "$(basename "$dir")" == "bin" ]] || return 0
+
+	repo="$(dirname "$dir")"
+	[[ -e "$repo/.git" ]] || return 0                                  # a git repo
+	[[ -f "$repo/go.mod" ]] || return 0
+	# Match the module line, tolerating CRLF line endings and trailing space.
+	grep -q '^module github\.com/openchami/fabrica[[:space:]]*$' "$repo/go.mod" || return 0  # the fabrica repo
+
+	printf '%s' "$repo"
+}
+
+if [[ -z "${LOCAL_FABRICA+set}" ]]; then
+	LOCAL_FABRICA="$(detect_local_fabrica_repo "$FABRICA_BIN")"
+fi
 
 # Honor the toolchain used in the notes, but allow overriding.
 export GOTOOLCHAIN="${GOTOOLCHAIN:-go1.26.6}"
