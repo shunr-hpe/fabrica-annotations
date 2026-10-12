@@ -28,6 +28,9 @@ go.work.sum
 # env file
 .env
 
+# Generated service output from scripts/generate-user-service
+/build/
+
 # Editor/IDE
 # .idea/
 # .vscode/

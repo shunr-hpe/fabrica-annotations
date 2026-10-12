@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+#
+# Copyright © 2026 OpenCHAMI a Series of LF Projects, LLC
+#
+# SPDX-License-Identifier: MIT
+#
+# generate-user-service scaffolds and generates the storage-annotations
+# user-service end to end, following:
+#   - work/ochami/inventory-with-db.md       (current command list)
+#   - fabrica/examples/12-storage-annotations/README.md  (Steps 1-4)
+#
+# It performs:
+#   1. fabrica init           (Step 1)
+#   2. add a local fabrica replace directive (optional)
+#   3. fab-init               (Step 2 `fabrica add resource` + Step 3 struct merge)
+#   4. fabrica generate       (Step 4)
+#   5. go mod tidy -e / go generate ./... / go mod tidy / go build ./...
+#
+# The `migrate` step from the README is intentionally omitted: that command no
+# longer exists; `go generate ./...` produces the Ent code instead.
+#
+# Every command is printed before it runs. The script stops on the first
+# failure.
+
+set -euo pipefail
+
+# --- resolve repository layout ----------------------------------------------
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ANNOTATIONS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT_DIR="$(cd "$ANNOTATIONS_DIR/.." && pwd)"
+
+FAB_INIT_DIR="$ANNOTATIONS_DIR/fab-init"
+STRUCTS_DIR="${STRUCTS_DIR:-$ANNOTATIONS_DIR/user-service-structs}"
+FABRICA_DIR="${FABRICA_DIR:-$ROOT_DIR/fabrica}"
+
+# --- configuration (override via environment) -------------------------------
+
+SERVICE_NAME="${SERVICE_NAME:-user-service}"
+MODULE="${MODULE:-github.com/openchami/${SERVICE_NAME}}"
+GROUP="${GROUP:-storage-annotations.openchami.org}"
+DB="${DB:-sqlite}"
+OUT_DIR="${OUT_DIR:-$ANNOTATIONS_DIR/build}"
+SERVICE_DIR="$OUT_DIR/$SERVICE_NAME"
+
+# Path to the fabrica binary; prefer a local build, fall back to PATH.
+if [[ -z "${FABRICA_BIN:-}" ]]; then
+	if [[ -x "$FABRICA_DIR/bin/fabrica.exe" ]]; then
+		FABRICA_BIN="$FABRICA_DIR/bin/fabrica.exe"
+	elif [[ -x "$FABRICA_DIR/bin/fabrica" ]]; then
+		FABRICA_BIN="$FABRICA_DIR/bin/fabrica"
+	else
+		FABRICA_BIN="fabrica"
+	fi
+fi
+
+# Local fabrica checkout to pin via a go.mod replace directive. Set to empty to
+# build against the published module instead.
+LOCAL_FABRICA="${LOCAL_FABRICA:-$FABRICA_DIR}"
+
+# Honor the toolchain used in the notes, but allow overriding.
+export GOTOOLCHAIN="${GOTOOLCHAIN:-go1.26.6}"
+
+# --- helpers ----------------------------------------------------------------
+
+run() {
+	echo "+ $*"
+	"$@"
+}
+
+# winpath converts a cygwin/msys path to a native Windows path (forward slashes),
+# so arguments handed to the Windows-native fabrica/go binaries resolve
+# correctly. On a real POSIX system it is a no-op.
+winpath() {
+	if command -v cygpath >/dev/null 2>&1; then
+		cygpath -m "$1"
+	else
+		printf '%s' "$1"
+	fi
+}
+
+# --- pipeline ---------------------------------------------------------------
+
+echo "== generating $SERVICE_NAME into $SERVICE_DIR =="
+
+run rm -rf "$SERVICE_DIR"
+run mkdir -p "$OUT_DIR"
+
+# Step 1: initialize the project.
+run "$FABRICA_BIN" init "$SERVICE_NAME" \
+	--module "$MODULE" \
+	--group "$GROUP" \
+	--storage-version v1 \
+	--storage-type ent \
+	--db "$DB" \
+	--dir "$(winpath "$OUT_DIR")"
+
+# Optional: build against a local fabrica checkout.
+if [[ -n "$LOCAL_FABRICA" ]]; then
+	line="replace github.com/openchami/fabrica => $(winpath "$LOCAL_FABRICA")"
+	echo "+ append to go.mod: $line"
+	printf '\n%s\n' "$line" >>"$SERVICE_DIR/go.mod"
+fi
+
+# Steps 2 & 3: `fabrica add resource` plus merge of the annotated structs.
+run env -C "$FAB_INIT_DIR" go run . \
+	-fabrica "$(winpath "$FABRICA_BIN")" \
+	"$(winpath "$STRUCTS_DIR")" \
+	"$(winpath "$SERVICE_DIR")"
+
+# Step 4: generate handlers, storage adapters, Ent schema, OpenAPI, etc.
+# Its final step (ent client code) fails here because the module's deps are not
+# resolved yet; that code is produced by 'go generate ./...' below, so this
+# particular failure is expected and non-fatal.
+echo "+ env -C $SERVICE_DIR $FABRICA_BIN generate"
+if ! env -C "$SERVICE_DIR" "$FABRICA_BIN" generate; then
+	echo "note: 'fabrica generate' reported an error (expected: ent client is built by 'go generate' below); continuing"
+fi
+
+# Build: resolve deps, generate Ent code, then compile.
+run env -C "$SERVICE_DIR" go mod tidy -e
+run env -C "$SERVICE_DIR" go generate ./...
+run env -C "$SERVICE_DIR" go mod tidy
+run env -C "$SERVICE_DIR" go build ./...
+
+echo "== done: $SERVICE_DIR =="
+echo "run it with:"
+echo "  cd $SERVICE_DIR"
+echo "  go run ./cmd/server serve --port 8080 --database-url \"file:./${SERVICE_NAME}.db?_fk=1\""
