@@ -28,8 +28,9 @@ go.work.sum
 # env file
 .env
 
-# Generated service output from scripts/generate-user-service
-/build/
+# output directories
+build/
+bin
 
 # Editor/IDE
 # .idea/
