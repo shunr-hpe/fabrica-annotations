@@ -31,11 +31,19 @@ $(BINARY_DIR)/$(BINARY_NAME): $(GO_FILES)
 	@mkdir -p $(BINARY_DIR)
 	cd $(FAB_INIT_DIR) && $(GO) build $(GOFLAGS) -o ../$(BINARY_DIR)/$(BINARY_NAME) .
 
-# Generate the user-service under build/
+# Generate the user-service variants under build/
 .PHONY: generate
-generate: ## Generate the user-service under build/
-	@echo "Generating user-service..."
-	./scripts/generate-user-service
+generate: generate-sqlite generate-postgres ## Generate all user-service variants under build/
+
+.PHONY: generate-sqlite
+generate-sqlite: ## Generate the sqlite user-service under build/user-service-sqlite
+	@echo "Generating user-service-sqlite..."
+	./scripts/generate-user-service --name user-service-sqlite --db sqlite
+
+.PHONY: generate-postgres
+generate-postgres: ## Generate the postgres user-service under build/user-service-postgres
+	@echo "Generating user-service-postgres..."
+	./scripts/generate-user-service --name user-service-postgres --db postgres
 
 # Clean build artifacts
 .PHONY: clean
