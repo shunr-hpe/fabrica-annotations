@@ -34,13 +34,63 @@ FAB_INIT_DIR="$ANNOTATIONS_DIR/fab-init"
 STRUCTS_DIR="${STRUCTS_DIR:-$ANNOTATIONS_DIR/user-service-structs}"
 FABRICA_DIR="${FABRICA_DIR:-$ROOT_DIR/fabrica}"
 
-# --- configuration (override via environment) -------------------------------
+# --- configuration (defaults; override via environment or CLI flags) --------
 
 SERVICE_NAME="${SERVICE_NAME:-user-service}"
-MODULE="${MODULE:-github.com/openchami/${SERVICE_NAME}}"
+MODULE="${MODULE:-}"
 GROUP="${GROUP:-storage-annotations.openchami.org}"
 DB="${DB:-sqlite}"
+AUTH="${AUTH:-false}"
 OUT_DIR="${OUT_DIR:-$ANNOTATIONS_DIR/build}"
+
+# --- command-line options ---------------------------------------------------
+
+usage() {
+	cat <<EOF
+Usage: $(basename "$0") [options]
+
+Scaffolds and generates the storage-annotations user-service.
+
+Options (same form as 'fabrica init'):
+  --auth                 Enable authentication with TokenSmith
+  --db <driver>          Ent database driver: sqlite, postgres, or mysql (default: $DB)
+  --module <path>        Go module path (default: github.com/openchami/<name>)
+
+Additional options:
+  --name <name>          Project name, e.g. user-service, user-service-postgres,
+                         user-service-sqlite (default: $SERVICE_NAME)
+  --working-dir <dir>    Directory in which to create the project
+                         (default: $OUT_DIR)
+  -h, --help             Show this help
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	--auth) AUTH=true; shift ;;
+	--auth=*) AUTH="${1#*=}"; shift ;;
+	--db) [[ $# -ge 2 ]] || { echo "error: --db requires a value" >&2; exit 2; }; DB="$2"; shift 2 ;;
+	--db=*) DB="${1#*=}"; shift ;;
+	--module) [[ $# -ge 2 ]] || { echo "error: --module requires a value" >&2; exit 2; }; MODULE="$2"; shift 2 ;;
+	--module=*) MODULE="${1#*=}"; shift ;;
+	--name) [[ $# -ge 2 ]] || { echo "error: --name requires a value" >&2; exit 2; }; SERVICE_NAME="$2"; shift 2 ;;
+	--name=*) SERVICE_NAME="${1#*=}"; shift ;;
+	--working-dir) [[ $# -ge 2 ]] || { echo "error: --working-dir requires a value" >&2; exit 2; }; OUT_DIR="$2"; shift 2 ;;
+	--working-dir=*) OUT_DIR="${1#*=}"; shift ;;
+	-h | --help) usage; exit 0 ;;
+	*) echo "error: unknown option: $1" >&2; usage >&2; exit 2 ;;
+	esac
+done
+
+# Derive the module path from the project name unless one was provided.
+: "${MODULE:=github.com/openchami/${SERVICE_NAME}}"
+
+# Absolutize the working directory so it survives being passed to native tools.
+case "$OUT_DIR" in
+/* | [A-Za-z]:*) ;;
+*) OUT_DIR="$(pwd)/$OUT_DIR" ;;
+esac
+
 SERVICE_DIR="$OUT_DIR/$SERVICE_NAME"
 
 # Path to the fabrica binary; prefer a local build, fall back to PATH.
@@ -87,13 +137,17 @@ run rm -rf "$SERVICE_DIR"
 run mkdir -p "$OUT_DIR"
 
 # Step 1: initialize the project.
-run "$FABRICA_BIN" init "$SERVICE_NAME" \
-	--module "$MODULE" \
-	--group "$GROUP" \
-	--storage-version v1 \
-	--storage-type ent \
-	--db "$DB" \
-	--dir "$(winpath "$OUT_DIR")"
+init_args=(init "$SERVICE_NAME"
+	--module "$MODULE"
+	--group "$GROUP"
+	--storage-version v1
+	--storage-type ent
+	--db "$DB"
+	--dir "$(winpath "$OUT_DIR")")
+if [[ "$AUTH" == "true" ]]; then
+	init_args+=(--auth)
+fi
+run "$FABRICA_BIN" "${init_args[@]}"
 
 # Optional: build against a local fabrica checkout.
 if [[ -n "$LOCAL_FABRICA" ]]; then
