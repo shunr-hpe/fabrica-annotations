@@ -14,6 +14,8 @@ BUILD_DIR=build
 FAB_INIT_DIR=fab-init
 
 # Default target
+.DEFAULT_GOAL := help
+
 # Run all build targets
 .PHONY: all
 all: clean build generate
@@ -44,6 +46,12 @@ generate-sqlite: ## Generate the sqlite user-service under build/user-service-sq
 generate-postgres: ## Generate the postgres user-service under build/user-service-postgres
 	@echo "Generating user-service-postgres..."
 	./scripts/generate-user-service --name user-service-postgres --db postgres
+
+# Run integration tests against the generated sqlite user-service
+.PHONY: test-sqlite
+test-sqlite: ## Run the sqlite user-service integration tests
+	@echo "Running sqlite user-service tests..."
+	cd tests/sqlite && $(GO) test $(GOFLAGS) ./...
 
 # Clean build artifacts
 .PHONY: clean
