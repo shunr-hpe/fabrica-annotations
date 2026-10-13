@@ -48,6 +48,8 @@ make clean
 ## Observing the uniqueness bug
 
 There is seems to be a bug in the dedicated-storage path: duplicate resources are not
-rejected on their unique fields. See **[dev-sqlite.md](dev-sqlite.md)** for
-step-by-step directions to generate the sqlite service and reproduce the
-problem.
+rejected on their unique fields. For step-by-step directions to generate a
+service and reproduce the problem, see:
+
+- **[dev-sqlite.md](dev-sqlite.md)** — sqlite variant
+- **[dev-postgres.md](dev-postgres.md)** — postgres variant
