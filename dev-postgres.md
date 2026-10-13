@@ -114,10 +114,17 @@ docker exec user-pg psql -U postgres -d user_service -c "\d resources"
 You should see two rows in `resources` for the same username, confirming the
 duplicate was stored.
 
-Tear down postgres when finished:
+Tear down postgres when finished. The `-v` removes the anonymous data volume
+along with the container:
 
 ```sh
-docker rm -f user-pg
+docker rm -f -v user-pg
+```
+
+If earlier runs left orphaned anonymous volumes behind, clear them with:
+
+```sh
+docker volume prune
 ```
 
 ## The fix

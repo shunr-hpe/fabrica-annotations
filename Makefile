@@ -85,8 +85,8 @@ postgres-up: ## Start a postgres container for manual/stepped testing
 	@echo 'export USER_SERVICE_POSTGRES_URL="$(PG_URL)"'
 
 .PHONY: postgres-down
-postgres-down: ## Stop the manual/stepped postgres container
-	-docker rm -f $(PG_CONTAINER)
+postgres-down: ## Stop the manual/stepped postgres container (and its data volume)
+	-docker rm -f -v $(PG_CONTAINER)
 
 .PHONY: service-postgres-run
 service-postgres-run: ## Run the generated postgres user-service in the foreground (uses PG_URL)

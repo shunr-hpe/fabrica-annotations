@@ -110,8 +110,9 @@ func startPostgres(t *testing.T) (string, func()) {
 
 	port := pickPostgresPort(t)
 
-	// Remove any stale container left behind by a crashed run.
-	_ = exec.Command("docker", "rm", "-f", pgContainer).Run()
+	// Remove any stale container (and its anonymous data volume) left behind by
+	// a crashed run.
+	_ = exec.Command("docker", "rm", "-f", "-v", pgContainer).Run()
 
 	run := exec.Command("docker", "run", "--rm", "-d",
 		"--name", pgContainer,
@@ -124,7 +125,7 @@ func startPostgres(t *testing.T) (string, func()) {
 		t.Fatalf("failed to start postgres container: %v\n%s", err, out)
 	}
 
-	stop := func() { _ = exec.Command("docker", "rm", "-f", pgContainer).Run() }
+	stop := func() { _ = exec.Command("docker", "rm", "-f", "-v", pgContainer).Run() }
 
 	if err := waitForPostgres(pgContainer, 90*time.Second); err != nil {
 		logs, _ := exec.Command("docker", "logs", pgContainer).CombinedOutput()
