@@ -71,8 +71,8 @@ func TestUserUniqueness(t *testing.T) {
 	defer stopServer()
 
 	// Unique per run so the test is independent of any existing data in a
-	// shared/stepped database.
-	username := fmt.Sprintf("alice-%d", time.Now().UnixNano())
+	// shared/stepped database. Keep it alphanumeric to satisfy validation.
+	username := fmt.Sprintf("alice%d", time.Now().UnixNano())
 	body := aliceBody(username)
 
 	if code, b := postUser(t, base, body); code != http.StatusCreated {
