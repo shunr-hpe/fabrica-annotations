@@ -205,9 +205,20 @@ if ! env -C "$SERVICE_DIR" "$FABRICA_BIN" generate; then
 	echo "note: 'fabrica generate' reported an error (expected: ent client is built by 'go generate' below); continuing"
 fi
 
-# Build: resolve deps, generate Ent code, then compile.
-run env -C "$SERVICE_DIR" go mod tidy -e
-run env -C "$SERVICE_DIR" go generate ./...
+# Build: generate Ent code first, then resolve deps and compile.
+#
+# The Ent client packages (internal/storage/ent/...) are produced by
+# 'go generate' below, and the generated storage code imports them. Running
+# generation first means the single 'go mod tidy' that follows sees a complete
+# source tree and resolves the whole import graph cleanly. The generate step
+# runs in '-mod=mod' so it may add the Ent (and any other) requirements go.mod
+# is still missing at this point, instead of failing read-only resolution.
+#
+# Previously a 'go mod tidy -e' ran here first. Because the Ent packages did not
+# exist yet, 'go mod tidy' tried to resolve the module's own not-yet-generated
+# internal/storage/ent/... packages as remote modules and printed alarming but
+# harmless "Repository not found" errors (its '-e' flag let the script proceed).
+run env -C "$SERVICE_DIR" GOFLAGS=-mod=mod go generate ./...
 run env -C "$SERVICE_DIR" go mod tidy
 run env -C "$SERVICE_DIR" go build ./...
 
